@@ -62,6 +62,9 @@ We can verify that we'll be done in 15 years (180 months):
 >>> payments[-1]
 (Decimal('1103.77'), Decimal('3.68'))
 
+A simpler way of getting the same information is
+>>> m.balance(180)
+
 Refinance Analysis
 ------------------
 
