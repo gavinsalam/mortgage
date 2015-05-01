@@ -65,24 +65,36 @@ class Mortgage:
     def total_payout(self):
         return self.monthly_payment() * self.loan_months()
 
-    def total_cost(self):
-        "Returns the total payout minus the initial amount"
-        return (self.monthly_payment() * self.loan_months() - self.amount())
+    def total_cost(self, months=None, years=None):
+        """
+        Returns the total payout minus the initial amount. 
 
-    def balance(self, months):
+        By default to end of mortgage, or if months/years specified, then
+        to the that point in time
+        """
+        if (months == None and years == None):
+            m_months = self.loan_months()
+        else:
+            m_months = self.__months(months,years)
+
+        return (self.monthly_payment() * m_months - (self.amount() - self.balance(m_months)))
+
+    def balance(self, months=None, years=None):
         """
         Returns the balance after a given number of months (including last month's payment)
         Note that it doesn't take into account rounding, so can differ from exact
         calculation with rounding each month
         """
-        # slightly tricky approach to calculating this
+        m_months = self.__months(months,years)
+
+        # approach to calculating this that doesn't account for rounding
         # work out total owed, assuming no monthly payment
-        total_at_date = float(self.amount())*self.month_growth()**months 
+        total_at_date = float(self.amount())*self.month_growth()**m_months 
         # work out total paid, inflating it by interest for each month that passes after payment
-        total_paid    = float(self.monthly_payment())*(1-self.month_growth()**months)/(1-self.month_growth())
+        total_paid    = float(self.monthly_payment())*(1-self.month_growth()**m_months)/(1-self.month_growth())
         # the difference is the balance
         return  dollar(total_at_date - total_paid)
-    
+
     def monthly_payment_schedule(self):
         monthly = self.monthly_payment()
         balance = dollar(self.amount())
@@ -99,10 +111,10 @@ class Mortgage:
 
     def __months(self, months = None, years = None):
         "Internal routine to parse arguments with months or years; returns an integer number of months"
-        if (months):
-            if (years): raise InputError("years cannot be specified together with months")
+        if (months != None):
+            if (years != None): raise InputError("years cannot be specified together with months")
             return int(months)
-        elif (years):
+        elif (years != None):
             return int(years*MONTHS_IN_YEAR)
         else:
             raise InputError("months or years must be specified")
