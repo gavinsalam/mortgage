@@ -45,6 +45,7 @@ class Mortgage:
         return dollar(pre_amt, round=decimal.ROUND_CEILING)
 
     def total_value(self, m_payment):
+        "Returns the amount that you could borrow today given a monthly payment of m_payment"
         return m_payment / self.rate() * (float(MONTHS_IN_YEAR) * (1.-(1./self.month_growth()) ** self.loan_months()))
 
     def annual_payment(self):
@@ -53,6 +54,24 @@ class Mortgage:
     def total_payout(self):
         return self.monthly_payment() * self.loan_months()
 
+    def total_cost(self):
+        "Returns the total payout minus the initial amount"
+        return (self.monthly_payment() * self.loan_months() - self.amount())
+
+    def balance(self, months):
+        """
+        Returns the balance after a given number of months (including last month's payment)
+        Note that it doesn't take into account rounding, so can differ from exact
+        calculation with rounding each month
+        """
+        # slightly tricky approach to calculating this
+        # work out total owed, assuming no monthly payment
+        total_at_date = float(self.amount())*self.month_growth()**months 
+        # work out total paid, inflating it by interest for each month that passes after payment
+        total_paid    = float(self.monthly_payment())*(1-self.month_growth()**months)/(1-self.month_growth())
+        # the difference is the balance
+        return  dollar(total_at_date - total_paid)
+    
     def monthly_payment_schedule(self):
         monthly = self.monthly_payment()
         balance = dollar(self.amount())
@@ -77,21 +96,41 @@ def print_summary(m):
     print('{0:>25s}:  {1:>12.2f}'.format('Monthly Payment', m.monthly_payment()))
     print('{0:>25s}:  {1:>12.2f}'.format('Annual Payment', m.annual_payment()))
     print('{0:>25s}:  {1:>12.2f}'.format('Total Payout', m.total_payout()))
+    print('{0:>25s}:  {1:>12.2f}'.format('Total Cost', m.total_cost()))
 
+def print_schedule_summary(m):
+    output_format ='{0:>5d} {1:>12.2f} {2:>12.2f} {3:>12.2f}'
+    header_format = output_format.replace('.2f','s').replace('d','s')
+
+    print ("\n\nSummary of repayment schedule")
+    print(header_format.format("year","balance","paid","net cost"))
+    nyears = int(m.loan_years())
+    for y in range(0, (nyears+1)):
+        balance = m.balance(y*MONTHS_IN_YEAR)
+        paid = m.monthly_payment()*y*MONTHS_IN_YEAR
+        print (output_format.format(y, balance, paid, balance + paid - m.amount()))
+
+    
 def main():
     parser = argparse.ArgumentParser(description='Mortgage Amortization Tools')
     parser.add_argument('-i', '--interest', default=6, dest='interest')
     parser.add_argument('-y', '--loan-years', default=30, dest='years')
     parser.add_argument('-m', '--loan-months', default=None, dest='months')
     parser.add_argument('-a', '--amount', default=100000, dest='amount')
+    parser.add_argument('-s', '--schedule-summary', action="store_true", dest='schedule_summary')
     args = parser.parse_args()
 
+    interest = float(args.interest) / 100
+    
     if args.months:
-        m = Mortgage(float(args.interest) / 100, float(args.months), args.amount)
+        m = Mortgage(interest, float(args.months), args.amount)
     else:
-        m = Mortgage(float(args.interest) / 100, float(args.years) * MONTHS_IN_YEAR, args.amount)
+        m = Mortgage(interest, float(args.years) * MONTHS_IN_YEAR, args.amount)
 
     print_summary(m)
 
+    if (args.schedule_summary):
+        print_schedule_summary(m)
+    
 if __name__ == '__main__':
     main()
