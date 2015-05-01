@@ -164,6 +164,7 @@ def print_schedule_summary(m, inflation):
     header_format = output_format.replace('.2f','s').replace('d','s')
 
     print ("\n\nSummary of repayment schedule")
+    if (inflation != 0): print ("(All figures adjusted for inflation back to today's value)")
     print(header_format.format("year","balance","paid","net cost"))
     nyears = int(m.loan_years())
     for y in range(0, (nyears+1)):
