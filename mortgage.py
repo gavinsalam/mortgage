@@ -62,24 +62,41 @@ class Mortgage:
     def annual_payment(self):
         return self.monthly_payment() * MONTHS_IN_YEAR
 
-    def total_payout(self):
-        return self.monthly_payment() * self.loan_months()
+    def total_payout(self, months=None, years=None, inflation = 0):
 
-    def total_cost(self, months=None, years=None):
-        """
-        Returns the total payout minus the initial amount. 
+        if (months == None and years == None):
+            m_months = self.loan_months()
+        else:
+            m_months = self.__months(months,years)
+
+        monthly_factor = (1+inflation)**(-1.0/MONTHS_IN_YEAR)
+        if (inflation != 0):
+            # monthly*monthly_factor + monthly/monthly_factor^2 + ...
+            m_paid = float(self.monthly_payment())*monthly_factor*(1 - monthly_factor**m_months)/(1 - monthly_factor)
+        else:
+            m_paid = self.monthly_payment() * m_months
+        return m_paid
+
+    def total_cost(self, months=None, years=None, inflation = 0):
+        """Returns the total payout minus the initial amount. 
 
         By default to end of mortgage, or if months/years specified, then
-        to the that point in time
+        to the that point in time.
+
+        If inflation is non-zero, then the cost is adjusted to
+        correspond to today's value.
+
         """
         if (months == None and years == None):
             m_months = self.loan_months()
         else:
             m_months = self.__months(months,years)
 
-        return (self.monthly_payment() * m_months - (self.amount() - self.balance(m_months)))
+        m_paid = self.total_payout(months = m_months, inflation = inflation)
 
-    def balance(self, months=None, years=None):
+        return dollar(m_paid) - (self.amount() - self.balance(m_months, inflation=inflation))
+
+    def balance(self, months=None, years=None, inflation=0):
         """
         Returns the balance after a given number of months (including last month's payment)
         Note that it doesn't take into account rounding, so can differ from exact
@@ -93,7 +110,9 @@ class Mortgage:
         # work out total paid, inflating it by interest for each month that passes after payment
         total_paid    = float(self.monthly_payment())*(1-self.month_growth()**m_months)/(1-self.month_growth())
         # the difference is the balance
-        return  dollar(total_at_date - total_paid)
+        m_balance = total_at_date - total_paid;
+        if (inflation != 0): m_balance /= (1+inflation)**(float(m_months)/MONTHS_IN_YEAR)
+        return  dollar(m_balance)
 
     def monthly_payment_schedule(self):
         monthly = self.monthly_payment()
@@ -121,19 +140,26 @@ class Mortgage:
 
 
             
-def print_summary(m):
-    print('{0:>25s}:  {1:>12.6f}'.format('Rate', m.rate()))
-    print('{0:>25s}:  {1:>12.6f}'.format('Month Growth', m.month_growth()))
-    print('{0:>25s}:  {1:>12.6f}'.format('APY', m.apy()))
-    print('{0:>25s}:  {1:>12.0f}'.format('Payoff Years', m.loan_years()))
-    print('{0:>25s}:  {1:>12.0f}'.format('Payoff Months', m.loan_months()))
-    print('{0:>25s}:  {1:>12.2f}'.format('Amount', m.amount()))
-    print('{0:>25s}:  {1:>12.2f}'.format('Monthly Payment', m.monthly_payment()))
-    print('{0:>25s}:  {1:>12.2f}'.format('Annual Payment', m.annual_payment()))
-    print('{0:>25s}:  {1:>12.2f}'.format('Total Payout', m.total_payout()))
-    print('{0:>25s}:  {1:>12.2f}'.format('Total Cost', m.total_cost()))
+def print_summary(m, inflation):
+    print('{0:>27s}:  {1:>12.6f}'.format('Rate', m.rate()))
+    print('{0:>27s}:  {1:>12.6f}'.format('Month Growth', m.month_growth()))
+    print('{0:>27s}:  {1:>12.6f}'.format('APY', m.apy()))
+    print('{0:>27s}:  {1:>12.0f}'.format('Payoff Years', m.loan_years()))
+    print('{0:>27s}:  {1:>12.0f}'.format('Payoff Months', m.loan_months()))
+    print('{0:>27s}:  {1:>12.2f}'.format('Amount', m.amount()))
+    print('{0:>27s}:  {1:>12.2f}'.format('Monthly Payment', m.monthly_payment()))
+    print('{0:>27s}:  {1:>12.2f}'.format('Annual Payment', m.annual_payment()))
+    print('{0:>27s}:  {1:>12.2f}'.format('Total Payout', m.total_payout()))
+    print('{0:>27s}:  {1:>12.2f}'.format('Total Cost', m.total_cost()))
 
-def print_schedule_summary(m):
+    if (inflation != 0):
+        print ("\n")
+        print('{0:>27s}:  {1:>12.6f}'.format('inflation', inflation))
+        print('{0:>27s}:  {1:>12.2f}'.format('Infl-adjusted Total Payout', m.total_payout(inflation=inflation)))
+        print('{0:>27s}:  {1:>12.2f}'.format('Infl-adjusted Total Cost', m.total_cost(inflation=inflation)))
+        
+    
+def print_schedule_summary(m, inflation):
     output_format ='{0:>5d} {1:>12.2f} {2:>12.2f} {3:>12.2f}'
     header_format = output_format.replace('.2f','s').replace('d','s')
 
@@ -141,9 +167,9 @@ def print_schedule_summary(m):
     print(header_format.format("year","balance","paid","net cost"))
     nyears = int(m.loan_years())
     for y in range(0, (nyears+1)):
-        balance = m.balance(y*MONTHS_IN_YEAR)
-        paid = m.monthly_payment()*y*MONTHS_IN_YEAR
-        print (output_format.format(y, balance, paid, balance + paid - m.amount()))
+        balance = m.balance(y*MONTHS_IN_YEAR, inflation=inflation)
+        paid = m.total_payout(years=y, inflation=inflation)
+        print (output_format.format(y, balance, paid, m.total_cost(years=y,inflation=inflation)))
 
     
 def main():
@@ -153,6 +179,7 @@ def main():
     parser.add_argument('-m', '--loan-months', default=None, dest='months')
     parser.add_argument('-a', '--amount', default=100000, dest='amount')
     parser.add_argument('-s', '--schedule-summary', action="store_true", dest='schedule_summary')
+    parser.add_argument('-f', '--inflation', default=0.0, dest='inflation')
     args = parser.parse_args()
 
     interest = float(args.interest) / 100
@@ -162,10 +189,12 @@ def main():
     else:
         m = Mortgage(interest, float(args.years) * MONTHS_IN_YEAR, args.amount)
 
-    print_summary(m)
+    inflation = float(args.inflation)/100
+        
+    print_summary(m, inflation)
 
     if (args.schedule_summary):
-        print_schedule_summary(m)
+        print_schedule_summary(m, inflation)
     
 if __name__ == '__main__':
     main()
