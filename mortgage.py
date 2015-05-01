@@ -16,12 +16,23 @@ def dollar(f, round=decimal.ROUND_CEILING):
         f = decimal.Decimal(str(f))
     return f.quantize(DOLLAR_QUANTIZE, rounding=round)
 
-class Mortgage:
-    def __init__(self, interest, months, amount):
-        self._interest = float(interest)
-        self._months = int(months)
-        self._amount = dollar(amount)
+class InputError(Exception):
+    """Exception raised for errors in the input.
 
+    Attributes:
+        msg  -- explanation of the error
+    """
+
+    def __init__(self, msg):
+        self.msg = msg
+        print("Input error: {0:s}\n".format(msg))
+
+class Mortgage:
+    def __init__(self, interest, months = None, amount = 100000, years = None):
+        self._interest = float(interest)
+        self._months = self.__months(months,years)
+        self._amount = dollar(amount)
+        
     def rate(self):
         return self._interest
 
@@ -45,7 +56,7 @@ class Mortgage:
         return dollar(pre_amt, round=decimal.ROUND_CEILING)
 
     def total_value(self, m_payment):
-        "Returns the amount that you could borrow today given a monthly payment of m_payment"
+        "Returns the amount that you could borrow today, given a monthly payment of m_payment (taking duration and interest rate from class)"
         return m_payment / self.rate() * (float(MONTHS_IN_YEAR) * (1.-(1./self.month_growth()) ** self.loan_months()))
 
     def annual_payment(self):
@@ -86,6 +97,18 @@ class Mortgage:
             yield principle, interest
             balance -= principle
 
+    def __months(self, months = None, years = None):
+        "Internal routine to parse arguments with months or years; returns an integer number of months"
+        if (months):
+            if (years): raise InputError("years cannot be specified together with months")
+            return int(months)
+        elif (years):
+            return int(years*MONTHS_IN_YEAR)
+        else:
+            raise InputError("months or years must be specified")
+
+
+            
 def print_summary(m):
     print('{0:>25s}:  {1:>12.6f}'.format('Rate', m.rate()))
     print('{0:>25s}:  {1:>12.6f}'.format('Month Growth', m.month_growth()))
