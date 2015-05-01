@@ -100,3 +100,23 @@ That lower payment resulted in the mortgagee paying a mortgage for 45 years
 instead of 30 and increased the total interest from $123,311.97 to $164,738.59.
 Is the pleasure of a lower payment really worth roughly $40,000 more interest
 expense?
+
+
+Shortcuts
+---------
+
+There are some functions to help do the above more easily:
+
+Start the mortgage calculation and work out the balance after 15 years:
+
+>>> m = mortgage.Mortgage(interest=0.035, amount=200000, years=30)
+>>> balance = m.balance(years=15)
+
+Then create the second mortgage:
+
+>>> m2 = mortgage.Mortgage(interest=0.035, amount=balance, years=30)
+
+and examine the payments of the two mortgages as well as the the total cost
+
+>>> m2.monthly_payment(), m.monthly_payment()
+>>> m.total_cost(years=15) + m2.total_cost()
